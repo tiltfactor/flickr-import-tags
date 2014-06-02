@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/rollups/hmac-sha1.js"></script>
+		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/components/enc-base64-min.js"></script>
+
+		<script type="text/javascript">
+			//This key-secret pair is for the app/developer.
+			var API_KEY;
+			var API_SECRET;
+
+			//This key-secret pair is for the user.
+			//A user may obtain authorization using the getOAuthFunctionUrl function directly
+			var TOKEN_KEY;
+			var TOKEN_SECRET;
+
+			//Global counters for totals, used in incrementTotals
+			var totalImages = 0;
+			var failures = 0;
+			var successes = 0;
+
+			//Queue for API calls
+			var callQueue = [];
+
+			/*
+			 * Pull the first call (if any) off the front of the callQueue and process it
+			 *  + Called every second by setInterval below
+			 */
+			function makeCall() {
+				var call = callQueue.shift();
+				if (call) {
+					var xhr = createRequest();
+					if (!xhr)
+						console.log("Error: no known XML Http Request format available");
+					xhr.open("GET", call.url, true);
+					xhr.onreadystatechange = function () {
+						if (xhr.readyState == 4) {
+							updateTable(call.photoid, xhr.responseText);
+						}
+					}
+					xhr.send();
+				}
+			}
+			//Call makeCall every second
+			window.setInterval(makeCall, 1000);
+
+			/*
+			 * Define the API and token key/secret using form input
+			 *  + Called by pressing the "Submit" button
+			 */
+			function defineKeys(form) {
+				if (API_KEY && API_SECRET && TOKEN_KEY && TOKEN_SECRET) {
+					API_KEY = form.apikey.value;
+					API_SECRET = form.apisecret.value;
+					TOKEN_KEY = form.tokenkey.value;
+					TOKEN_SECRET = form.tokensecret.value;
+					alert("Keys and secrets sucessfully defined.");
+				} else {
+					alert("Error: boxes left blank.")
+				}
+			}
+
+			/*
+			 * Cross-browser compatibile XHR creation
+			 *  by Dr. M Elkstein
+			 *  http://rest.elkstein.org/2008/02/using-rest-in-javascript.html
+			 */
+			function createRequest() {
+			  var result = null;
+			  if (window.XMLHttpRequest) {
+			    // FireFox, Safari, etc.
+			    result = new XMLHttpRequest();
+			  }
+			  else if (window.ActiveXObject) {
+			    // MSIE
+			    result = new ActiveXObject("Microsoft.XMLHTTP");
+			  } 
+			  else {
+			    // No known mechanism -- consider aborting the application
+			  }
+			  return result;
+			}
+
+			/*
+			 * Checks to make sure the API and token key/secret are defined before
+			 *  calling the parse function.
+			 */
+			function checkKeys(evt) {
+				if (API_KEY && API_SECRET && TOKEN_KEY && TOKEN_SECRET) {
+					parseJSONFromFile(evt);
+				} else {
+					alert("Please enter the keys and secrets above before uploading files.");
+				}
+			}
+			/*
+			 * Import file with JSON data
+			 *  original by Eric Bidelman
+			 *  http://www.html5rocks.com/en/tutorials/file/dndfiles/
+			 */
+			function parseJSONFromFile(evt) {
+				// Check for the various File API support.
+				if (window.File && window.FileReader && window.FileList && window.Blob) {
+				// Great success! All the File APIs are supported.
+				} else {
+				  alert('The File APIs are not fully supported in this browser.');
+				}
+
+				var inFiles = evt.target.files;
+
+				for (var i = 0; i < inFiles.length; i++) {
+					var reader = new FileReader();
+					reader.onload = function(file) {
+						addTags(JSON.parse(file.target.result));
+					}
+					reader.readAsText(inFiles[i]);
+				}
+
+				
+
+				//Enclosed recursive function puts an interval of 1 second between
+				// each call to addTags
+				function delayedCall(i) {
+					
+				}
+				delayedCall(0);
+			}
+
+			/*
+			 * Takes a parsed JSON and iterates over the images, calling addTagsToImage on each
+			 *  importData - a (JSON) object with a media attribute containing image data
+			 */
+			function addTags(importData) {
+				var images = importData.extension.media;
+
+				for (imageName in images) {
+					var photoid = imageName.substring(0, imageName.indexOf('_'));
+					addTagsToImage(photoid, images[imageName].tags);
+				}
+			}
+
+			/*
+			 * Adds tags to a single image
+			 *  photoid - a string of digits
+			 *  tags - an array of tags (strings)
+			 */
+			function addTagsToImage(photoid, tags) {
+
+				// Format the tags string correctly for REST
+				var tagString = "";
+				for (var i = 0; i < tags.length; i++) {
+					var simpleTag = cleanString(tags[i]);
+					if (simpleTag == "")
+						continue;
+
+					tagString += "\"" + simpleTag + "\",";
+				}
+				encodedTagString = encodeURIComponent(tagString);
+
+				// Create the argument object to be used by getOAuthFunctionUrl
+				args = {
+					"method": "flickr.photos.addTags",
+					"photo_id": photoid,
+					"tags": encodedTagString,
+					"format": "json"
+				};
+				var url = getOAuthFunctionUrl("https://api.flickr.com/services/rest", args);
+
+				// Add the url to the queue to be called
+				callQueue.push({ "url" : url, "photoid" : photoid });
+			}
+
+			/*
+			 * Converts a string to lowercase and removes apostrophes
+			 *  str - the string to be cleaned
+			 */
+			function cleanString(str) {
+				//Commented out: version of method to remove all punctuation and convert to lowercase
+				//var cleanStr = str.replace(/[`~!@#$%\^&\*()\-_\+={}\[\]\|\\;:'"\,\.\/<>\?]/g, "");
+				//cleanStr = cleanStr.toLowerCase();
+
+				var cleanStr = str.replace(/'/g, "");
+				return cleanStr;
+			}
+
+			/*
+			 * Gets the url for an authorized function call
+			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
+			 *  methodArgs - object containing each method-specific argument
+			 *   + this does not include the oauth arguments
+			 *  tokenSecret [optional] - a string specific to the authorized user
+			 *   + should only be changed from the default if authorizing a different user
+			 *  usesToken [optional] - a boolean denoting whether the authorization token should be used
+			 *   + as above, should only be changed if authorizing a different user
+			 */
+			function getOAuthFunctionUrl(baseUrl, methodArgs, tokenSecret, usesToken) { //tokenSecret and usesToken are _optional_ parameters;
+
+				//Set default values
+				if (typeof tokenSecret === 'undefined')
+					tokenSecret = TOKEN_SECRET;
+				if (typeof usesToken === 'undefined')
+					usesToken = true;
+
+				// Initialize the list of arguments with the oauth arguments
+				var allArgs = {
+					"oauth_nonce" : Math.floor(Math.random() * 1000000),
+					"oauth_timestamp" : Math.round(new Date().getTime() / 1000),
+					"oauth_consumer_key" : API_KEY,   //This is the API key for an app under Gareth's account
+					"oauth_signature_method" : "HMAC-SHA1",
+					"oauth_version" : "1.0"
+				};
+
+				// Add the oauth_token argument (ommitted only for token authorization function calls)
+				if (usesToken) {
+					allArgs.oauth_token = TOKEN_KEY;
+				}
+
+				// Add method-specific arguments
+				for (key in methodArgs) {
+					allArgs[key] = methodArgs[key];
+				}
+
+				// Add signature argument
+				allArgs.oauth_signature = getSignature(baseUrl, allArgs, tokenSecret);
+
+				// Attach parameters to base url and return it
+				var fullUrl = baseUrl + "?";
+				for (key in allArgs) {
+					fullUrl += (key + "=" + allArgs[key] + "&");
+				}
+				fullUrl = fullUrl.substring(0, fullUrl.length - 1); //remove trailing &
+
+				return fullUrl;
+			}
+
+			/*
+			 * Return the HMAC-SHA-1 signature for a function call
+			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
+			 *  args - object with each argument as an attribute
+			 *   + note: this includes the method name
+			 *  tokenSecret - string, used as the second half of the encryption key
+			 */
+			function getSignature(baseUrl, args, tokenSecret) {
+
+				//Convert args object into array to allow alphabetical sorting
+				var argArray = [];
+				for (key in args) {
+					argArray.push(key + "=" + args[key] + "&"); //extra & will be removed below
+				}
+
+				//Sort arguments alphabetically
+				argArray.sort();
+
+				//Create string of sorted arguments
+				var argString = "";
+				for (var i = 0; i < argArray.length; i++) {
+					argString += argArray[i];
+				}
+				argString = argString.substring(0, argString.length - 1);
+
+
+				//Create base string for HMAC-SHA-1
+				var encodedArgString = encodeURIComponent(argString);
+				var encodedBaseUrl = encodeURIComponent(baseUrl);
+				var baseString = "GET&" + encodedBaseUrl + "&" + encodedArgString;
+
+				//Use API secret & token secret (for user) as key
+				var encryptionKey = API_SECRET + "&" + tokenSecret;  //This API secret is also under Gareth's account
+
+
+				var signature = CryptoJS.HmacSHA1(baseString, encryptionKey).toString(CryptoJS.enc.Base64);
+				return encodeURIComponent(signature);
+			}
+
+			/*
+			 * Displays the output of each API call in an HTML table
+			 *  photoid - a string corresponding to the photo being tagged
+			 *  outputData - the string returned by the API call
+			 */
+			function updateTable(photoid, outputData) {
+				var outputTable = document.getElementById("output_table");
+
+				//.substring removes the api method wrapper, allowing JSON to properly parse data
+				var status;
+				if (outputData.substring(0, 14) == "jsonFlickrApi(") {
+					var outputJSON = JSON.parse(outputData.substring(14, outputData.length - 1));
+					status = outputJSON.stat;
+				} else {
+					status = "Invalid JSON - see details";
+				}
+
+				var newRow = document.createElement('tr');
+				var cell1 = document.createElement('td');
+				var cell2 = document.createElement('td');
+				var cell3 = document.createElement('td');
+
+				cell1.innerHTML = photoid;
+				cell2.innerHTML = status;
+				cell3.innerHTML = outputData;
+				cell3.style.whiteSpace = "normal";
+
+				newRow.appendChild(cell1);
+				newRow.appendChild(cell2);
+				newRow.appendChild(cell3);
+
+				newRow.style.backgroundColor = (status == "ok") ? "#bfb" : "#fbb"; //green : red
+				outputTable.appendChild(newRow);
+
+				incrementTotals(status);
+			}
+
+			/*
+			 * Increments the totals displayed in the upper table
+			 *  status - a string 
+			 *   + "ok" if successful
+			 *   + "Invalid JSON - see details" if invalid call
+			 */
+			function incrementTotals(status) {
+				totalImages++;
+				document.getElementById("cellTotal").innerHTML = totalImages;
+				if (status == "ok") {
+					successes++;
+					document.getElementById("cellSuccess").innerHTML = successes;
+				} else {
+					failures++;
+					document.getElementById("cellFailure").innerHTML = failures;
+				}
+			}
+
+		</script>
+
+		<style>
+			table { margin: 10px; border-collapse: collapse; }
+			table th, table td{ border: 1px solid #999; padding: 5px; white-space: nowrap;}
+			.red { padding: 10px; display: inline-block; outline: 1px solid red;}
+			.borderless td{ border: 0px solid #fff;}
+		</style>
+		<title>Metadata Games Flickr Tag Upload</title>
+	</head>
+	<body>
+		<div class="red">
+			<p>Before selecting files, please enter the following.</p>
+			<form>
+				<p>
+					The API key and secret correspond to the developer. The API calls are associated with the developer. <br/>
+					The token key and secret correspond to the authenticating user. This user will be the one applying the tags.
+				</p>
+
+				<table class="borderless"><tbody>
+					<tr>
+						<td>API key:</td>
+						<td><input type="text" name="apikey" /></td>
+						<td>API secret:</td>
+						<td><input type="text" name="apisecret" /></td>
+					</tr>
+					<tr>
+						<td>Token key:</td>
+						<td><input type="text" name="tokenkey" /></td>
+						<td>Token secret:</td>
+						<td><input type="text" name="tokensecret" /></td>
+					</tr>
+				</tbody></table>
+
+				<input type="button" value="Submit" onClick="defineKeys(this.form)" />
+			</form>
+		</div>
+		<p>
+			Select the file(s) containing JSON export data below. The tags will be applied automatically.<br/>
+			Outputs can be found below.
+		</p>
+		<form>
+			<input type="file" id="files" name="files[]" multiple />
+			<script>document.getElementById('files').addEventListener('change', checkKeys, false);</script>
+		</form>
+
+		<table class="result_table">
+			<thead>
+				<tr>
+					<th>Total Images</th>
+					<th>Successes</th>
+					<th>Failures</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td id="cellTotal">0</td>
+					<td id="cellSuccess">0</td>
+					<td id="cellFailure">0</td>
+			</tbody>
+		</table>
+
+		<table>
+			<thead>
+				<tr>
+					<th>Photo ID</th>
+					<th>Status</th>
+					<th>Details</th>
+				</tr>
+			</thead>
+			<tbody id="output_table">
+				<!--Output is put here-->
+			</tbody>
+		</table>
+	</body>
+</html>
