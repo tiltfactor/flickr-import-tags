@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<!--These are available from the CryptoJS library uder the BSD 3-Clause License-->
 		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/rollups/hmac-sha1.js"></script>
 		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/components/enc-base64-min.js"></script>
 
@@ -114,15 +115,6 @@
 					}
 					reader.readAsText(inFiles[i]);
 				}
-
-				
-
-				//Enclosed recursive function puts an interval of 1 second between
-				// each call to addTags
-				function delayedCall(i) {
-					
-				}
-				delayedCall(0);
 			}
 
 			/*
@@ -188,9 +180,9 @@
 			 *  methodArgs - object containing each method-specific argument
 			 *   + this does not include the oauth arguments
 			 *  tokenSecret [optional] - a string specific to the authorized user
-			 *   + should only be changed from the default if authorizing a different user
+			 *   + should only be defined if using the function for user authorization
 			 *  usesToken [optional] - a boolean denoting whether the authorization token should be used
-			 *   + as above, should only be changed if authorizing a different user
+			 *   + as above, should only be defined if using the function for user authorization
 			 */
 			function getOAuthFunctionUrl(baseUrl, methodArgs, tokenSecret, usesToken) { //tokenSecret and usesToken are _optional_ parameters;
 
@@ -204,7 +196,7 @@
 				var allArgs = {
 					"oauth_nonce" : Math.floor(Math.random() * 1000000),
 					"oauth_timestamp" : Math.round(new Date().getTime() / 1000),
-					"oauth_consumer_key" : API_KEY,   //This is the API key for an app under Gareth's account
+					"oauth_consumer_key" : API_KEY,
 					"oauth_signature_method" : "HMAC-SHA1",
 					"oauth_version" : "1.0"
 				};
@@ -264,7 +256,7 @@
 				var baseString = "GET&" + encodedBaseUrl + "&" + encodedArgString;
 
 				//Use API secret & token secret (for user) as key
-				var encryptionKey = API_SECRET + "&" + tokenSecret;  //This API secret is also under Gareth's account
+				var encryptionKey = API_SECRET + "&" + tokenSecret;
 
 
 				var signature = CryptoJS.HmacSHA1(baseString, encryptionKey).toString(CryptoJS.enc.Base64);
