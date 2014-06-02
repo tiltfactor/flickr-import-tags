@@ -30,16 +30,10 @@
 			function makeCall() {
 				var call = callQueue.shift();
 				if (call) {
-					var xhr = createRequest();
-					if (!xhr)
-						console.log("Error: no known XML Http Request format available");
-					xhr.open("GET", call.url, true);
-					xhr.onreadystatechange = function () {
-						if (xhr.readyState == 4) {
-							updateTable(call.photoid, xhr.responseText);
-						}
+					var updateFunction = function(responseText) {
+						updateTable(call.photoid, responseText);
 					}
-					xhr.send();
+					sendAPIRequest(call.url, updateFunction);
 				}
 			}
 			//Call makeCall every second
@@ -50,7 +44,7 @@
 			 *  + Called by pressing the "Submit" button
 			 */
 			function defineKeys(form) {
-				if (API_KEY && API_SECRET && TOKEN_KEY && TOKEN_SECRET) {
+				if (form.apikey.value && form.apisecret.value && form.tokenkey.value && form.tokensecret.value) {
 					API_KEY = form.apikey.value;
 					API_SECRET = form.apisecret.value;
 					TOKEN_KEY = form.tokenkey.value;
@@ -80,6 +74,19 @@
 			    // No known mechanism -- consider aborting the application
 			  }
 			  return result;
+			}
+
+			function sendAPIRequest(url, callbackFunction) {
+				var xhr = createRequest();
+				if (!xhr)
+					console.log("Error: no known XML Http Request format available");
+				xhr.open("GET", url, true);
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState == 4) {
+						callbackFunction(xhr.responseText);
+					}
+				}
+				xhr.send();
 			}
 
 			/*
@@ -316,6 +323,45 @@
 					failures++;
 					document.getElementById("cellFailure").innerHTML = failures;
 				}
+			}
+
+
+			/* From this line downwards, all methods are not implemented in the HTML.
+			   They are intended for expediating user authentication.
+			   Hopefully, this will be integrated into the HTML in the future. */
+
+			function getRequestToken(apiKey, apiSecret) {
+				API_KEY = apiKey;
+				API_SECRET = apiSecret;
+
+				var url = "https://www.flickr.com/services/oauth/request_token";
+				var args = { "oauth_callback" : encodeURIComponent("http://www.example.com") };
+				var apiURL = getOAuthFunctionUrl(url, args, "", false);
+
+				console.log("Please go to the following url, and copy the text returned");
+				console.log("Call getUserAuthURL(responseText), where response text is the copied text.");
+				console.log(apiURL);
+			}
+
+			function getUserAuthURL(responseText) {
+				var responsePieces = responseText.split(/[&=]/g);
+				var requestKey = responsePieces[3];
+				var requestSecret = responsePieces[5];
+				TOKEN_KEY = requestKey;
+				TOKEN_SECRET = requestSecret;
+				console.log("Again, go to the following url. Authorize the application, and copy the url of the page you are redirected to.");
+				console.log("Call getUserToken(redirectURL), where redirectURL is the copied url.");
+				console.log("https://www.flickr.com/services/oauth/authorize?oauth_token=" + requestKey);
+			}
+
+			function getUserToken(redirectURL) {
+				var redirectArgs = redirectURL.split("?")[1].split(/[&=]/g);
+				var verifier = redirectArgs[3];
+				var url = "https://www.flickr.com/services/oauth/access_token";
+				var args = { "oauth_verifier" : verifier };
+				var apiURL = getOAuthFunctionUrl(url, args);
+				console.log("Once more, go to the following url. It will contain the user token (oauth_token) and secret (oauth_token_secret).");
+				console.log(apiURL);
 			}
 
 		</script>
