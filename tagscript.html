@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<meta http-equiv="content-type" content="text/html; charset=UTF-8">
 		<!--These are available from the CryptoJS library uder the BSD 3-Clause License-->
 		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/rollups/hmac-sha1.js"></script>
 		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/components/enc-base64-min.js"></script>
@@ -193,19 +194,21 @@
 			 */
 			function getOAuthFunctionUrl(baseUrl, methodArgs, apiKey, apiSecret, tokenKey, tokenSecret) { //tokenSecret and usesToken are _optional_ parameters;
 
-				//Set default values
-				if (typeof usesToken === 'undefined')
-					usesToken = true;
-
 				// Initialize the list of arguments with the oauth arguments
 				var allArgs = {
 					"oauth_nonce" : Math.floor(Math.random() * 1000000),
 					"oauth_timestamp" : Math.round(new Date().getTime() / 1000),
 					"oauth_consumer_key" : apiKey,
 					"oauth_signature_method" : "HMAC-SHA1",
-					"oauth_version" : "1.0",
-					"oauth_token" : tokenKey
+					"oauth_version" : "1.0"
 				};
+
+				// Only add tokenKey argument if defined
+				if (tokenKey)
+					allArgs.oauth_token = tokenKey;
+
+				if (!tokenSecret)
+					tokenSecret = "";
 
 				// Add method-specific arguments
 				for (key in methodArgs) {
@@ -319,58 +322,7 @@
 					document.getElementById("cellFailure").innerHTML = failures;
 				}
 			}
-
-
-			/* From this line downwards, all methods are not implemented in the HTML.
-			   They are intended for expediating user authentication.
-			   Hopefully, this will be integrated into the HTML in the future. */
-
-			console.log("To start the user authentication process, call getRequestToken(apiKey, apiSecret) using the app key and secret.");
-			console.log("If you do not already have these, they can be requested here: https://www.flickr.com/services/apps/create/apply/")
-
-			function getRequestToken(apiKey, apiSecret) {
-				API_KEY = apiKey;
-				API_SECRET = apiSecret;
-
-				var url = "https://www.flickr.com/services/oauth/request_token";
-				var args = { "oauth_callback" : encodeURIComponent("http://www.example.com") };
-				var apiURL = getOAuthFunctionUrl(url, args, API_KEY, API_SECRET, "", "");
-
-				console.log("Please go to the following url, and copy the text returned");
-				console.log("Call getUserAuthURL(responseText), where response text is the copied text.");
-				console.log(apiURL);
-			}
-
-			//Temporary key and secret, to be used for transferring data between these functions
-			// Not an ideal method, but works okay.
-			var TEMP_KEY;
-			var TEMP_SECRET;
-
-			function getUserAuthURL(responseText) {
-				var responsePieces = responseText.split(/[&=]/g);
-				var requestKey = responsePieces[3];
-				var requestSecret = responsePieces[5];
-				TEMP_KEY = requestKey;
-				TEMP_SECRET = requestSecret;
-				console.log("Again, go to the following url. Authorize the application, and copy the url of the page you are redirected to.");
-				console.log("Call getUserToken(redirectURL), where redirectURL is the copied url.");
-				console.log("https://www.flickr.com/services/oauth/authorize?oauth_token=" + requestKey);
-			}
-
-			function getUserToken(redirectURL) {
-				var redirectArgs = redirectURL.split("?")[1].split(/[&=]/g);
-				var verifier = redirectArgs[3];
-				var url = "https://www.flickr.com/services/oauth/access_token";
-				var args = { "oauth_verifier" : verifier };
-				var apiURL = getOAuthFunctionUrl(url, args, API_KEY, API_SECRET, TEMP_KEY, TEMP_SECRET);
-				console.log("Once more, go to the following url. It will contain the user token (oauth_token) and secret (oauth_token_secret).");
-				console.log(apiURL);
-
-				//Clearing temporary key and secret
-				TEMP_KEY = null;
-				TEMP_SECRET = null;
-			}
-
+			
 		</script>
 
 		<style>
@@ -391,7 +343,7 @@
 					<a href="https://www.flickr.com/services/apps/create/apply/">the Flickr key application page</a> to request one.
 				</p>
 					The token key and secret correspond to the authenticating user. This user will be the one applying the tags. <br/>
-					If you do not have a user token, you can open the Javascript console and follow the instructions there to obtain one.
+					If you do not have a user token, you can use the <a href="userauth.html">Flickr User Token Retrieval script</a>.
 				</p>
 
 				<table class="borderless"><tbody>

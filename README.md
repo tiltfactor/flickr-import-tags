@@ -9,5 +9,4 @@ To run this script, you will need:
     (you can get one at https://www.flickr.com/services/apps/create/apply/)
  - User token key and secret
 
-The user token can be retrieved via an authentication process, started by
-calling getRequestToken(apiKey, apiSecret)
+The user token can be retrieved via the authentication process at userauth.html
