@@ -162,7 +162,7 @@
 					"tags": encodedTagString,
 					"format": "json"
 				};
-				var url = getOAuthFunctionUrl("https://api.flickr.com/services/rest", args);
+				var url = getOAuthFunctionUrl("https://api.flickr.com/services/rest", args, API_KEY, API_SECRET, TOKEN_KEY, TOKEN_SECRET);
 
 				// Add the url to the queue to be called
 				callQueue.push({ "url" : url, "photoid" : photoid });
@@ -186,16 +186,14 @@
 			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
 			 *  methodArgs - object containing each method-specific argument
 			 *   + this does not include the oauth arguments
-			 *  tokenSecret [optional] - a string specific to the authorized user
-			 *   + should only be defined if using the function for user authorization
-			 *  usesToken [optional] - a boolean denoting whether the authorization token should be used
-			 *   + as above, should only be defined if using the function for user authorization
+			 *  apiKey - the key specific to the developer/app
+			 *  apiSecret - the secret specific to the developer/app
+			 *  tokenKey - the key specific to the authorized user
+			 *  tokenSecret - the secret specific to the authorized user
 			 */
-			function getOAuthFunctionUrl(baseUrl, methodArgs, tokenSecret, usesToken) { //tokenSecret and usesToken are _optional_ parameters;
+			function getOAuthFunctionUrl(baseUrl, methodArgs, apiKey, apiSecret, tokenKey, tokenSecret) { //tokenSecret and usesToken are _optional_ parameters;
 
 				//Set default values
-				if (typeof tokenSecret === 'undefined')
-					tokenSecret = TOKEN_SECRET;
 				if (typeof usesToken === 'undefined')
 					usesToken = true;
 
@@ -203,15 +201,11 @@
 				var allArgs = {
 					"oauth_nonce" : Math.floor(Math.random() * 1000000),
 					"oauth_timestamp" : Math.round(new Date().getTime() / 1000),
-					"oauth_consumer_key" : API_KEY,
+					"oauth_consumer_key" : apiKey,
 					"oauth_signature_method" : "HMAC-SHA1",
-					"oauth_version" : "1.0"
+					"oauth_version" : "1.0",
+					"oauth_token" : tokenKey
 				};
-
-				// Add the oauth_token argument (ommitted only for token authorization function calls)
-				if (usesToken) {
-					allArgs.oauth_token = TOKEN_KEY;
-				}
 
 				// Add method-specific arguments
 				for (key in methodArgs) {
@@ -219,7 +213,7 @@
 				}
 
 				// Add signature argument
-				allArgs.oauth_signature = getSignature(baseUrl, allArgs, tokenSecret);
+				allArgs.oauth_signature = getSignature(baseUrl, allArgs, apiSecret, tokenSecret);
 
 				// Attach parameters to base url and return it
 				var fullUrl = baseUrl + "?";
@@ -236,9 +230,10 @@
 			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
 			 *  args - object with each argument as an attribute
 			 *   + note: this includes the method name
+			 *  apiSecret - string, used as the first half of the encryption key
 			 *  tokenSecret - string, used as the second half of the encryption key
 			 */
-			function getSignature(baseUrl, args, tokenSecret) {
+			function getSignature(baseUrl, args, apiSecret, tokenSecret) {
 
 				//Convert args object into array to allow alphabetical sorting
 				var argArray = [];
@@ -263,7 +258,7 @@
 				var baseString = "GET&" + encodedBaseUrl + "&" + encodedArgString;
 
 				//Use API secret & token secret (for user) as key
-				var encryptionKey = API_SECRET + "&" + tokenSecret;
+				var encryptionKey = apiSecret + "&" + tokenSecret;
 
 
 				var signature = CryptoJS.HmacSHA1(baseString, encryptionKey).toString(CryptoJS.enc.Base64);
@@ -330,25 +325,33 @@
 			   They are intended for expediating user authentication.
 			   Hopefully, this will be integrated into the HTML in the future. */
 
+			console.log("To start the user authentication process, call getRequestToken(apiKey, apiSecret) using the app key and secret.");
+			console.log("If you do not already have these, they can be requested here: https://www.flickr.com/services/apps/create/apply/")
+
 			function getRequestToken(apiKey, apiSecret) {
 				API_KEY = apiKey;
 				API_SECRET = apiSecret;
 
 				var url = "https://www.flickr.com/services/oauth/request_token";
 				var args = { "oauth_callback" : encodeURIComponent("http://www.example.com") };
-				var apiURL = getOAuthFunctionUrl(url, args, "", false);
+				var apiURL = getOAuthFunctionUrl(url, args, API_KEY, API_SECRET, "", "");
 
 				console.log("Please go to the following url, and copy the text returned");
 				console.log("Call getUserAuthURL(responseText), where response text is the copied text.");
 				console.log(apiURL);
 			}
 
+			//Temporary key and secret, to be used for transferring data between these functions
+			// Not an ideal method, but works okay.
+			var TEMP_KEY;
+			var TEMP_SECRET;
+
 			function getUserAuthURL(responseText) {
 				var responsePieces = responseText.split(/[&=]/g);
 				var requestKey = responsePieces[3];
 				var requestSecret = responsePieces[5];
-				TOKEN_KEY = requestKey;
-				TOKEN_SECRET = requestSecret;
+				TEMP_KEY = requestKey;
+				TEMP_SECRET = requestSecret;
 				console.log("Again, go to the following url. Authorize the application, and copy the url of the page you are redirected to.");
 				console.log("Call getUserToken(redirectURL), where redirectURL is the copied url.");
 				console.log("https://www.flickr.com/services/oauth/authorize?oauth_token=" + requestKey);
@@ -359,9 +362,13 @@
 				var verifier = redirectArgs[3];
 				var url = "https://www.flickr.com/services/oauth/access_token";
 				var args = { "oauth_verifier" : verifier };
-				var apiURL = getOAuthFunctionUrl(url, args);
+				var apiURL = getOAuthFunctionUrl(url, args, API_KEY, API_SECRET, TEMP_KEY, TEMP_SECRET);
 				console.log("Once more, go to the following url. It will contain the user token (oauth_token) and secret (oauth_token_secret).");
 				console.log(apiURL);
+
+				//Clearing temporary key and secret
+				TEMP_KEY = null;
+				TEMP_SECRET = null;
 			}
 
 		</script>
@@ -380,7 +387,11 @@
 			<form>
 				<p>
 					The API key and secret correspond to the developer. The API calls are associated with the developer. <br/>
-					The token key and secret correspond to the authenticating user. This user will be the one applying the tags.
+					If you do not have an API key and secret, you can go to
+					<a href="https://www.flickr.com/services/apps/create/apply/">the Flickr key application page</a> to request one.
+				</p>
+					The token key and secret correspond to the authenticating user. This user will be the one applying the tags. <br/>
+					If you do not have a user token, you can open the Javascript console and follow the instructions there to obtain one.
 				</p>
 
 				<table class="borderless"><tbody>
