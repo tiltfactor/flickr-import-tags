@@ -51,6 +51,7 @@
 					TOKEN_KEY = form.tokenkey.value;
 					TOKEN_SECRET = form.tokensecret.value;
 					alert("Keys and secrets sucessfully defined.");
+					document.getElementById("step2").style.display = "inline";
 				} else {
 					alert("Error: boxes left blank.")
 				}
@@ -328,13 +329,14 @@
 		<style>
 			table { margin: 10px; border-collapse: collapse; }
 			table th, table td{ border: 1px solid #999; padding: 5px; white-space: nowrap;}
-			.red { padding: 10px; display: inline-block; outline: 1px solid red;}
 			.borderless td{ border: 0px solid #fff;}
+			#step2 { display: none; }
+			#apikey, #tokenkey { width: 250px;}
 		</style>
 		<title>Metadata Games Flickr Tag Upload</title>
 	</head>
 	<body>
-		<div class="red">
+		<div id="step1">
 			<p>Before selecting files, please enter the following.</p>
 			<form>
 				<p>
@@ -349,57 +351,60 @@
 				<table class="borderless"><tbody>
 					<tr>
 						<td>API key:</td>
-						<td><input type="text" name="apikey" /></td>
+						<td><input type="text" id="apikey" name="apikey" /></td>
 						<td>API secret:</td>
-						<td><input type="text" name="apisecret" /></td>
+						<td><input type="text" id="apisecret" name="apisecret" /></td>
 					</tr>
 					<tr>
 						<td>Token key:</td>
-						<td><input type="text" name="tokenkey" /></td>
+						<td><input type="text" id="tokenkey" name="tokenkey" /></td>
 						<td>Token secret:</td>
-						<td><input type="text" name="tokensecret" /></td>
+						<td><input type="text" id="tokensecret" name="tokensecret" /></td>
 					</tr>
 				</tbody></table>
 
 				<input type="button" value="Submit" onClick="defineKeys(this.form)" />
 			</form>
 		</div>
-		<p>
-			Select the file(s) containing JSON export data below. The tags will be applied automatically.<br/>
-			Outputs can be found below.
-		</p>
-		<form>
-			<input type="file" id="fileselect" name="files[]" multiple /> <br /><br />
-			<input type="button" value="Submit" onClick="checkKeys(this.form)" />
-		</form>
+		<div id="step2">
+			<hr />
+			<p>
+				Select the file(s) containing JSON export data below. The tags will be applied automatically.<br/>
+				Outputs can be found below.
+			</p>
+			<form>
+				<input type="file" id="fileselect" name="files[]" multiple /> <br /><br />
+				<input type="button" value="Submit" onClick="checkKeys(this.form)" />
+			</form>
 
-		<table class="result_table">
-			<thead>
-				<tr>
-					<th>Total Images</th>
-					<th>Successes</th>
-					<th>Failures</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr>
-					<td id="cellTotal">0</td>
-					<td id="cellSuccess">0</td>
-					<td id="cellFailure">0</td>
-			</tbody>
-		</table>
+			<table class="result_table">
+				<thead>
+					<tr>
+						<th>Total Images</th>
+						<th>Successes</th>
+						<th>Failures</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td id="cellTotal">0</td>
+						<td id="cellSuccess">0</td>
+						<td id="cellFailure">0</td>
+				</tbody>
+			</table>
 
-		<table>
-			<thead>
-				<tr>
-					<th>Photo ID</th>
-					<th>Status</th>
-					<th>Details</th>
-				</tr>
-			</thead>
-			<tbody id="output_table">
-				<!--Output is put here-->
-			</tbody>
-		</table>
+			<table>
+				<thead>
+					<tr>
+						<th>Photo ID</th>
+						<th>Status</th>
+						<th>Details</th>
+					</tr>
+				</thead>
+				<tbody id="output_table">
+					<!--Output is put here-->
+				</tbody>
+			</table>
+		</div>
 	</body>
 </html>
