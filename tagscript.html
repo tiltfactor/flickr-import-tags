@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<meta http-equiv="content-type" content="text/html; charset=UTF-8">
 		<!--These are available from the CryptoJS library uder the BSD 3-Clause License-->
 		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/rollups/hmac-sha1.js"></script>
 		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/components/enc-base64-min.js"></script>
@@ -30,16 +31,10 @@
 			function makeCall() {
 				var call = callQueue.shift();
 				if (call) {
-					var xhr = createRequest();
-					if (!xhr)
-						console.log("Error: no known XML Http Request format available");
-					xhr.open("GET", call.url, true);
-					xhr.onreadystatechange = function () {
-						if (xhr.readyState == 4) {
-							updateTable(call.photoid, xhr.responseText);
-						}
+					var updateFunction = function(responseText) {
+						updateTable(call.photoid, responseText);
 					}
-					xhr.send();
+					sendAPIRequest(call.url, updateFunction);
 				}
 			}
 			//Call makeCall every second
@@ -50,12 +45,13 @@
 			 *  + Called by pressing the "Submit" button
 			 */
 			function defineKeys(form) {
-				if (API_KEY && API_SECRET && TOKEN_KEY && TOKEN_SECRET) {
+				if (form.apikey.value && form.apisecret.value && form.tokenkey.value && form.tokensecret.value) {
 					API_KEY = form.apikey.value;
 					API_SECRET = form.apisecret.value;
 					TOKEN_KEY = form.tokenkey.value;
 					TOKEN_SECRET = form.tokensecret.value;
 					alert("Keys and secrets sucessfully defined.");
+					document.getElementById("step2").style.display = "inline";
 				} else {
 					alert("Error: boxes left blank.")
 				}
@@ -82,13 +78,26 @@
 			  return result;
 			}
 
+			function sendAPIRequest(url, callbackFunction) {
+				var xhr = createRequest();
+				if (!xhr)
+					console.log("Error: no known XML Http Request format available");
+				xhr.open("GET", url, true);
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState == 4) {
+						callbackFunction(xhr.responseText);
+					}
+				}
+				xhr.send();
+			}
+
 			/*
 			 * Checks to make sure the API and token key/secret are defined before
 			 *  calling the parse function.
 			 */
-			function checkKeys(evt) {
+			function checkKeys(form) {
 				if (API_KEY && API_SECRET && TOKEN_KEY && TOKEN_SECRET) {
-					parseJSONFromFile(evt);
+					parseJSONFromFile(form);
 				} else {
 					alert("Please enter the keys and secrets above before uploading files.");
 				}
@@ -98,7 +107,7 @@
 			 *  original by Eric Bidelman
 			 *  http://www.html5rocks.com/en/tutorials/file/dndfiles/
 			 */
-			function parseJSONFromFile(evt) {
+			function parseJSONFromFile(form) {
 				// Check for the various File API support.
 				if (window.File && window.FileReader && window.FileList && window.Blob) {
 				// Great success! All the File APIs are supported.
@@ -106,7 +115,7 @@
 				  alert('The File APIs are not fully supported in this browser.');
 				}
 
-				var inFiles = evt.target.files;
+				var inFiles = form.fileselect.files;
 
 				for (var i = 0; i < inFiles.length; i++) {
 					var reader = new FileReader();
@@ -155,7 +164,7 @@
 					"tags": encodedTagString,
 					"format": "json"
 				};
-				var url = getOAuthFunctionUrl("https://api.flickr.com/services/rest", args);
+				var url = getOAuthFunctionUrl("https://api.flickr.com/services/rest", args, API_KEY, API_SECRET, TOKEN_KEY, TOKEN_SECRET);
 
 				// Add the url to the queue to be called
 				callQueue.push({ "url" : url, "photoid" : photoid });
@@ -179,32 +188,28 @@
 			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
 			 *  methodArgs - object containing each method-specific argument
 			 *   + this does not include the oauth arguments
-			 *  tokenSecret [optional] - a string specific to the authorized user
-			 *   + should only be defined if using the function for user authorization
-			 *  usesToken [optional] - a boolean denoting whether the authorization token should be used
-			 *   + as above, should only be defined if using the function for user authorization
+			 *  apiKey - the key specific to the developer/app
+			 *  apiSecret - the secret specific to the developer/app
+			 *  tokenKey - the key specific to the authorized user
+			 *  tokenSecret - the secret specific to the authorized user
 			 */
-			function getOAuthFunctionUrl(baseUrl, methodArgs, tokenSecret, usesToken) { //tokenSecret and usesToken are _optional_ parameters;
-
-				//Set default values
-				if (typeof tokenSecret === 'undefined')
-					tokenSecret = TOKEN_SECRET;
-				if (typeof usesToken === 'undefined')
-					usesToken = true;
+			function getOAuthFunctionUrl(baseUrl, methodArgs, apiKey, apiSecret, tokenKey, tokenSecret) { //tokenSecret and usesToken are _optional_ parameters;
 
 				// Initialize the list of arguments with the oauth arguments
 				var allArgs = {
 					"oauth_nonce" : Math.floor(Math.random() * 1000000),
 					"oauth_timestamp" : Math.round(new Date().getTime() / 1000),
-					"oauth_consumer_key" : API_KEY,
+					"oauth_consumer_key" : apiKey,
 					"oauth_signature_method" : "HMAC-SHA1",
 					"oauth_version" : "1.0"
 				};
 
-				// Add the oauth_token argument (ommitted only for token authorization function calls)
-				if (usesToken) {
-					allArgs.oauth_token = TOKEN_KEY;
-				}
+				// Only add tokenKey argument if defined
+				if (tokenKey)
+					allArgs.oauth_token = tokenKey;
+
+				if (!tokenSecret)
+					tokenSecret = "";
 
 				// Add method-specific arguments
 				for (key in methodArgs) {
@@ -212,7 +217,7 @@
 				}
 
 				// Add signature argument
-				allArgs.oauth_signature = getSignature(baseUrl, allArgs, tokenSecret);
+				allArgs.oauth_signature = getSignature(baseUrl, allArgs, apiSecret, tokenSecret);
 
 				// Attach parameters to base url and return it
 				var fullUrl = baseUrl + "?";
@@ -229,9 +234,10 @@
 			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
 			 *  args - object with each argument as an attribute
 			 *   + note: this includes the method name
+			 *  apiSecret - string, used as the first half of the encryption key
 			 *  tokenSecret - string, used as the second half of the encryption key
 			 */
-			function getSignature(baseUrl, args, tokenSecret) {
+			function getSignature(baseUrl, args, apiSecret, tokenSecret) {
 
 				//Convert args object into array to allow alphabetical sorting
 				var argArray = [];
@@ -256,7 +262,7 @@
 				var baseString = "GET&" + encodedBaseUrl + "&" + encodedArgString;
 
 				//Use API secret & token secret (for user) as key
-				var encryptionKey = API_SECRET + "&" + tokenSecret;
+				var encryptionKey = apiSecret + "&" + tokenSecret;
 
 
 				var signature = CryptoJS.HmacSHA1(baseString, encryptionKey).toString(CryptoJS.enc.Base64);
@@ -317,80 +323,88 @@
 					document.getElementById("cellFailure").innerHTML = failures;
 				}
 			}
-
+			
 		</script>
 
 		<style>
 			table { margin: 10px; border-collapse: collapse; }
 			table th, table td{ border: 1px solid #999; padding: 5px; white-space: nowrap;}
-			.red { padding: 10px; display: inline-block; outline: 1px solid red;}
 			.borderless td{ border: 0px solid #fff;}
+			#step2 { display: none; }
+			#apikey, #tokenkey { width: 250px;}
 		</style>
 		<title>Metadata Games Flickr Tag Upload</title>
 	</head>
 	<body>
-		<div class="red">
+		<div id="step1">
 			<p>Before selecting files, please enter the following.</p>
 			<form>
 				<p>
 					The API key and secret correspond to the developer. The API calls are associated with the developer. <br/>
-					The token key and secret correspond to the authenticating user. This user will be the one applying the tags.
+					If you do not have an API key and secret, you can go to
+					<a href="https://www.flickr.com/services/apps/create/apply/">the Flickr key application page</a> to request one.
+				</p>
+					The token key and secret correspond to the authenticating user. This user will be the one applying the tags. <br/>
+					If you do not have a user token, you can use the <a href="userauth.html">Flickr User Token Retrieval script</a>.
 				</p>
 
 				<table class="borderless"><tbody>
 					<tr>
 						<td>API key:</td>
-						<td><input type="text" name="apikey" /></td>
+						<td><input type="text" id="apikey" name="apikey" /></td>
 						<td>API secret:</td>
-						<td><input type="text" name="apisecret" /></td>
+						<td><input type="text" id="apisecret" name="apisecret" /></td>
 					</tr>
 					<tr>
 						<td>Token key:</td>
-						<td><input type="text" name="tokenkey" /></td>
+						<td><input type="text" id="tokenkey" name="tokenkey" /></td>
 						<td>Token secret:</td>
-						<td><input type="text" name="tokensecret" /></td>
+						<td><input type="text" id="tokensecret" name="tokensecret" /></td>
 					</tr>
 				</tbody></table>
 
 				<input type="button" value="Submit" onClick="defineKeys(this.form)" />
 			</form>
 		</div>
-		<p>
-			Select the file(s) containing JSON export data below. The tags will be applied automatically.<br/>
-			Outputs can be found below.
-		</p>
-		<form>
-			<input type="file" id="files" name="files[]" multiple />
-			<script>document.getElementById('files').addEventListener('change', checkKeys, false);</script>
-		</form>
+		<div id="step2">
+			<hr />
+			<p>
+				Select the file(s) containing JSON export data below. The tags will be applied automatically.<br/>
+				Outputs can be found below.
+			</p>
+			<form>
+				<input type="file" id="fileselect" name="files[]" multiple /> <br /><br />
+				<input type="button" value="Submit" onClick="checkKeys(this.form)" />
+			</form>
 
-		<table class="result_table">
-			<thead>
-				<tr>
-					<th>Total Images</th>
-					<th>Successes</th>
-					<th>Failures</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr>
-					<td id="cellTotal">0</td>
-					<td id="cellSuccess">0</td>
-					<td id="cellFailure">0</td>
-			</tbody>
-		</table>
+			<table class="result_table">
+				<thead>
+					<tr>
+						<th>Total Images</th>
+						<th>Successes</th>
+						<th>Failures</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td id="cellTotal">0</td>
+						<td id="cellSuccess">0</td>
+						<td id="cellFailure">0</td>
+				</tbody>
+			</table>
 
-		<table>
-			<thead>
-				<tr>
-					<th>Photo ID</th>
-					<th>Status</th>
-					<th>Details</th>
-				</tr>
-			</thead>
-			<tbody id="output_table">
-				<!--Output is put here-->
-			</tbody>
-		</table>
+			<table>
+				<thead>
+					<tr>
+						<th>Photo ID</th>
+						<th>Status</th>
+						<th>Details</th>
+					</tr>
+				</thead>
+				<tbody id="output_table">
+					<!--Output is put here-->
+				</tbody>
+			</table>
+		</div>
 	</body>
 </html>

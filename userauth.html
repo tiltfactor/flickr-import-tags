@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+		<!--These are available from the CryptoJS library uder the BSD 3-Clause License-->
+		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/rollups/hmac-sha1.js"></script>
+		<script src="http://crypto-js.googlecode.com/svn/tags/3.1.2/build/components/enc-base64-min.js"></script>
+
+		<script type="text/javascript">
+			/*
+			 * Gets the url for an authorized function call
+			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
+			 *  methodArgs - object containing each method-specific argument
+			 *   + this does not include the oauth arguments
+			 *  apiKey - the key specific to the developer/app
+			 *  apiSecret - the secret specific to the developer/app
+			 *  tokenKey - the key specific to the authorized user
+			 *  tokenSecret - the secret specific to the authorized user
+			 */
+			function getOAuthFunctionUrl(baseUrl, methodArgs, apiKey, apiSecret, tokenKey, tokenSecret) { //tokenSecret and usesToken are _optional_ parameters;
+
+				// Initialize the list of arguments with the oauth arguments
+				var allArgs = {
+					"oauth_nonce" : Math.floor(Math.random() * 1000000),
+					"oauth_timestamp" : Math.round(new Date().getTime() / 1000),
+					"oauth_consumer_key" : apiKey,
+					"oauth_signature_method" : "HMAC-SHA1",
+					"oauth_version" : "1.0",
+				};
+
+				// Only add tokenKey argument if defined
+				if (tokenKey)
+					allArgs.oauth_token = tokenKey;
+
+				if (!tokenSecret)
+					tokenSecret = "";
+
+				// Add method-specific arguments
+				for (key in methodArgs) {
+					allArgs[key] = methodArgs[key];
+				}
+
+				// Add signature argument
+				allArgs.oauth_signature = getSignature(baseUrl, allArgs, apiSecret, tokenSecret);
+
+				// Attach parameters to base url and return it
+				var fullUrl = baseUrl + "?";
+				for (key in allArgs) {
+					fullUrl += (key + "=" + allArgs[key] + "&");
+				}
+				fullUrl = fullUrl.substring(0, fullUrl.length - 1); //remove trailing &
+
+				return fullUrl;
+			}
+
+			/*
+			 * Return the HMAC-SHA-1 signature for a function call
+			 *  baseUrl - the url string, typically "https://api.flickr.com/services/rest"
+			 *  args - object with each argument as an attribute
+			 *   + note: this includes the method name
+			 *  apiSecret - string, used as the first half of the encryption key
+			 *  tokenSecret - string, used as the second half of the encryption key
+			 */
+			function getSignature(baseUrl, args, apiSecret, tokenSecret) {
+
+				//Convert args object into array to allow alphabetical sorting
+				var argArray = [];
+				for (key in args) {
+					argArray.push(key + "=" + args[key] + "&"); //extra & will be removed below
+				}
+
+				//Sort arguments alphabetically
+				argArray.sort();
+
+				//Create string of sorted arguments
+				var argString = "";
+				for (var i = 0; i < argArray.length; i++) {
+					argString += argArray[i];
+				}
+				argString = argString.substring(0, argString.length - 1);
+
+
+				//Create base string for HMAC-SHA-1
+				var encodedArgString = encodeURIComponent(argString);
+				var encodedBaseUrl = encodeURIComponent(baseUrl);
+				var baseString = "GET&" + encodedBaseUrl + "&" + encodedArgString;
+
+				//Use API secret & token secret (for user) as key
+				var encryptionKey = apiSecret + "&" + tokenSecret;
+
+
+				var signature = CryptoJS.HmacSHA1(baseString, encryptionKey).toString(CryptoJS.enc.Base64);
+				return encodeURIComponent(signature);
+			}
+
+			function getRequestToken(form) {
+				var apiKey = form.apikey.value;
+				var apiSecret = form.apisecret.value;
+				if (!apiKey || !apiSecret) {
+					alert("Error: one or more fields left empty");
+					return;
+				}
+
+				var url = "https://www.flickr.com/services/oauth/request_token";
+				var args = { "oauth_callback" : encodeURIComponent("http://www.example.com") };
+				var apiURL = getOAuthFunctionUrl(url, args, apiKey, apiSecret, null, null);
+
+				document.getElementById("step2link").href = apiURL;
+				document.getElementById("step2").style.display = "inline";
+			}
+
+			//Temporary key and secret, to be used for transferring data between these functions
+			// Not an ideal method, but works okay.
+			var TEMP_KEY;
+			var TEMP_SECRET;
+
+			function getUserAuthURL(form) {
+				var responseText = form.requesttext.value;
+
+				var responsePieces = responseText.split(/[&=]/g);
+				var requestKey = responsePieces[3];
+				var requestSecret = responsePieces[5];
+				TEMP_KEY = requestKey;
+				TEMP_SECRET = requestSecret;
+
+				document.getElementById("step3link").href = "https://www.flickr.com/services/oauth/authorize?oauth_token=" + requestKey;
+				document.getElementById("step3").style.display = "inline";
+			}
+
+			function getUserToken(form) {
+				var apiKey = form.apikey.value;
+				var apiSecret = form.apisecret.value;
+				var redirectURL = form.redirecturl.value;
+
+				var redirectArgs = redirectURL.split("?")[1].split(/[&=]/g);
+				var verifier = redirectArgs[3];
+				var url = "https://www.flickr.com/services/oauth/access_token";
+				var args = { "oauth_verifier" : verifier };
+				var apiURL = getOAuthFunctionUrl(url, args, apiKey, apiSecret, TEMP_KEY, TEMP_SECRET);
+
+				document.getElementById("step4link").href = apiURL;
+				document.getElementById("step4").style.display = "inline";
+
+				//Clearing temporary key and secret
+				TEMP_KEY = null;
+				TEMP_SECRET = null;
+			}
+
+			function parseToken(form) {
+				var tokenText = form.tokentext.value;
+				var tokenPieces = tokenText.split(/[&=]/g);
+				var tokenKey = tokenPieces[3];
+				var tokenSecret = tokenPieces[5];
+
+				document.getElementById("tokenkey").innerHTML = tokenKey;
+				document.getElementById("tokensecret").innerHTML = tokenSecret;
+				document.getElementById("results").style.display = "inline";
+			}
+		</script>
+
+		<style>
+			form { margin-left: 10px; }
+			table { margin-bottom: 10px; }
+			textarea { height: 80px; width: 300px; }
+			#step2, #step3, #step4, #results{
+				display: none;
+			}
+			#results table { border-collapse: collapse; }
+			#results td, #results th {
+				border: 1px #666 solid;
+				padding: 5px;
+			}
+			th { font-weight: bold; }
+		</style>
+
+		<title>Flickr User Token Retrieval</title>
+	</head>
+	<body>
+		<p>
+			This is a tool meant for use with the <a href="tagscript.html">Metadata Games Flickr Tag Upload</a>.
+			It will walk you through the steps for retrieving a Flickr user token key and secret, needed for certain Flickr API calls.
+			Please note: you will need a developer API key/secret pair and a Flickr (Yahoo) account.
+			If you do not have an API key, you can request one on the
+			<a href="https://www.flickr.com/services/apps/create/apply/" target="_blank">Flickr key application page</a>.
+		</p>
+		<form>
+			<div id="step1">
+				<p>
+					<strong>Step 1:</strong> Enter your developer API key and secret below.
+				</p>
+				<table><tbody>
+					<tr>
+						<td>API Key:</td>
+						<td><input type="text" name="apikey" /></td>
+					</tr>
+					<tr>
+						<td>API Secret:</td>
+						<td><input type="text" name="apisecret" /></td>
+					</tr>
+				</tbody></table>
+				<input type="button" value="Continue" onClick="getRequestToken(this.form)"/>
+			</div>
+
+			<div id="step2">
+				<p>
+					<strong>Step 2:</strong> Follow <a id="step2link" target="_blank">this link</a> and copy the <strong>contents</strong> of the new page into the textbox below.
+				</p>
+				<textarea name="requesttext" placeholder="Contents of page"></textarea><br/>
+				<input type="button" value="Continue" onClick="getUserAuthURL(this.form)"/>
+			</div>
+
+			<div id="step3">
+				<p>
+					<strong>Step 3:</strong> Follow <a id="step3link" target="_blank">this link</a> and login to your Flickr account. Authorize the request.
+					This will redirect you to an example domain. Copy the <strong>URL</strong> of the page (http://www.example.com/?...) into the textbox below.
+				</p>
+				<textarea name="redirecturl" placeholder="URL of redirect page"></textarea><br/>
+				<input type="button" value="Continue" onClick="getUserToken(this.form)" />
+			</div>
+
+			<div id="step4">
+				<p>
+					<strong>Step 4:</strong> Follow <a id="step4link" target="_blank">this link</a> and copy the <strong>contents</strong> of the new page into the textbox below.
+				</p>
+				<textarea name="tokentext" placeholder="Contents of page"></textarea><br/>
+				<input type="button" value="Continue" onClick="parseToken(this.form)" />
+			</div>
+
+			<div id="results">
+				<p><strong>User token:</strong></p>
+				<table><tbody>
+					<tr>
+						<th>Key:</th>
+						<td id="tokenkey"></td>
+					</tr>
+					<tr>
+						<th>Secret:</th>
+						<td id="tokensecret"></td>
+					</tr>
+				</tbody></table>
+				<p>You may use this token pair on the <a href="tagscript.html">Metadata Games Flickr Tag Upload</a> page.
+			</div>
+
+		</form>
+	</body>
+</html>
