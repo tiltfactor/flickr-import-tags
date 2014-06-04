@@ -94,9 +94,9 @@
 			 * Checks to make sure the API and token key/secret are defined before
 			 *  calling the parse function.
 			 */
-			function checkKeys(evt) {
+			function checkKeys(form) {
 				if (API_KEY && API_SECRET && TOKEN_KEY && TOKEN_SECRET) {
-					parseJSONFromFile(evt);
+					parseJSONFromFile(form);
 				} else {
 					alert("Please enter the keys and secrets above before uploading files.");
 				}
@@ -106,7 +106,7 @@
 			 *  original by Eric Bidelman
 			 *  http://www.html5rocks.com/en/tutorials/file/dndfiles/
 			 */
-			function parseJSONFromFile(evt) {
+			function parseJSONFromFile(form) {
 				// Check for the various File API support.
 				if (window.File && window.FileReader && window.FileList && window.Blob) {
 				// Great success! All the File APIs are supported.
@@ -114,7 +114,7 @@
 				  alert('The File APIs are not fully supported in this browser.');
 				}
 
-				var inFiles = evt.target.files;
+				var inFiles = form.fileselect.files;
 
 				for (var i = 0; i < inFiles.length; i++) {
 					var reader = new FileReader();
@@ -369,8 +369,8 @@
 			Outputs can be found below.
 		</p>
 		<form>
-			<input type="file" id="files" name="files[]" multiple />
-			<script>document.getElementById('files').addEventListener('change', checkKeys, false);</script>
+			<input type="file" id="fileselect" name="files[]" multiple /> <br /><br />
+			<input type="button" value="Submit" onClick="checkKeys(this.form)" />
 		</form>
 
 		<table class="result_table">
