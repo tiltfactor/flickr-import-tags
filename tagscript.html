@@ -51,9 +51,20 @@
 					TOKEN_KEY = form.tokenkey.value;
 					TOKEN_SECRET = form.tokensecret.value;
 					alert("Keys and secrets sucessfully defined.");
+
 					document.getElementById("step2").style.display = "inline";
+					unfocus("step1");
 				} else {
 					alert("Error: boxes left blank.")
+				}
+			}
+
+			function unfocus(elementID) {
+				var elt = document.getElementById(elementID);
+				elt.classList.add("grey");
+				var inputs = elt.getElementsByTagName("input");
+				for (var i = 0; i < inputs.length; i++) {
+					inputs[i].disabled = true;
 				}
 			}
 
@@ -332,6 +343,8 @@
 			.borderless td{ border: 0px solid #fff;}
 			#step2 { display: none; }
 			#apikey, #tokenkey { width: 250px;}
+			.grey *{ color: #999; }
+			.grey *:visited {color: #888; }
 		</style>
 		<title>Metadata Games Flickr Tag Upload</title>
 	</head>
@@ -342,10 +355,10 @@
 				<p>
 					The API key and secret correspond to the developer. The API calls are associated with the developer. <br/>
 					If you do not have an API key and secret, you can go to
-					<a href="https://www.flickr.com/services/apps/create/apply/">the Flickr key application page</a> to request one.
+					<a href="https://www.flickr.com/services/apps/create/apply/" target="_blank">the Flickr key application page</a> to request one.
 				</p>
 					The token key and secret correspond to the authenticating user. This user will be the one applying the tags. <br/>
-					If you do not have a user token, you can use the <a href="userauth.html">Flickr User Token Retrieval script</a>.
+					If you do not have a user token, you can use the <a href="userauth.html" target="_blank">Flickr User Token Retrieval script</a>.
 				</p>
 
 				<table class="borderless"><tbody>

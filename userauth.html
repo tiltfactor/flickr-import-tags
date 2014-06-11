@@ -93,6 +93,19 @@
 				return encodeURIComponent(signature);
 			}
 
+			function unfocus(elementID) {
+				var elt = document.getElementById(elementID);
+				elt.classList.add("grey");
+				var inputs = elt.getElementsByTagName("input");
+				for (var i = 0; i < inputs.length; i++) {
+					inputs[i].disabled = true;
+				}
+				var textareas = elt.getElementsByTagName("textarea");
+				for (var i = 0; i < inputs.length; i++) {
+					textareas[i].disabled = true;
+				}
+			}
+
 			function getRequestToken(form) {
 				var apiKey = form.apikey.value;
 				var apiSecret = form.apisecret.value;
@@ -107,6 +120,7 @@
 
 				document.getElementById("step2link").href = apiURL;
 				document.getElementById("step2").style.display = "inline";
+				unfocus("step1");
 			}
 
 			//Temporary key and secret, to be used for transferring data between these functions
@@ -125,6 +139,7 @@
 
 				document.getElementById("step3link").href = "https://www.flickr.com/services/oauth/authorize?oauth_token=" + requestKey;
 				document.getElementById("step3").style.display = "inline";
+				unfocus("step2");
 			}
 
 			function getUserToken(form) {
@@ -144,6 +159,7 @@
 				//Clearing temporary key and secret
 				TEMP_KEY = null;
 				TEMP_SECRET = null;
+				unfocus("step3");
 			}
 
 			function parseToken(form) {
@@ -155,6 +171,7 @@
 				document.getElementById("tokenkey").innerHTML = tokenKey;
 				document.getElementById("tokensecret").innerHTML = tokenSecret;
 				document.getElementById("results").style.display = "inline";
+				unfocus("step4");
 			}
 		</script>
 
@@ -162,6 +179,7 @@
 			form { margin-left: 10px; }
 			table { margin-bottom: 10px; }
 			textarea { height: 80px; width: 300px; }
+			#apikey, #apisecret { width: 250px; }
 			#step2, #step3, #step4, #results{
 				display: none;
 			}
@@ -171,13 +189,15 @@
 				padding: 5px;
 			}
 			th { font-weight: bold; }
+			.grey *{ color: #999; }
+			.grey *:visited {color: #888; }
 		</style>
 
 		<title>Flickr User Token Retrieval</title>
 	</head>
 	<body>
 		<p>
-			This is a tool meant for use with the <a href="tagscript.html">Metadata Games Flickr Tag Upload</a>.
+			This is a tool meant for use with the <a href="tagscript.html" target="_blank">Metadata Games Flickr Tag Upload</a>.
 			It will walk you through the steps for retrieving a Flickr user token key and secret, needed for certain Flickr API calls.
 			Please note: you will need a developer API key/secret pair and a Flickr (Yahoo) account.
 			If you do not have an API key, you can request one on the
@@ -191,11 +211,11 @@
 				<table><tbody>
 					<tr>
 						<td>API Key:</td>
-						<td><input type="text" name="apikey" /></td>
+						<td><input type="text" id="apikey" name="apikey" /></td>
 					</tr>
 					<tr>
 						<td>API Secret:</td>
-						<td><input type="text" name="apisecret" /></td>
+						<td><input type="text" id="apisecret" name="apisecret" /></td>
 					</tr>
 				</tbody></table>
 				<input type="button" value="Continue" onClick="getRequestToken(this.form)"/>
@@ -238,7 +258,7 @@
 						<td id="tokensecret"></td>
 					</tr>
 				</tbody></table>
-				<p>You may use this token pair on the <a href="tagscript.html">Metadata Games Flickr Tag Upload</a> page.
+				<p>You may use this token pair on the <a href="tagscript.html" target="_blank">Metadata Games Flickr Tag Upload</a> page.
 			</div>
 
 		</form>
